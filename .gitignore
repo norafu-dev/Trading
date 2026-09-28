@@ -1,0 +1,19 @@
+# 版本管理排除项：凭证、本地数据、依赖和构建输出不进入仓库。
+.env
+.env.*
+!.env.example
+config/sources.toml
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+.DS_Store
+data/
+exports/
+node_modules/
+.next/
+*.tsbuildinfo

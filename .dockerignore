@@ -1,0 +1,16 @@
+# Docker 构建上下文排除项：防止凭证、依赖和本地数据进入镜像。
+**/.env
+**/.env.*
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/*.egg-info
+.git
+.DS_Store
+config/sources.toml
+data
+exports
+**/node_modules
+**/.next
+**/*.tsbuildinfo

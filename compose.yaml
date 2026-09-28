@@ -1,0 +1,119 @@
+# 本机采集工作区：数据库、API、前端、独立 Collector 及隔离测试库。
+name: trading-mvp
+
+x-app: &app
+  image: trading-mvp-collector:dev
+  build:
+    context: .
+    dockerfile: backend/Dockerfile
+    target: runtime
+  init: true
+
+x-db-env: &db-env
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  DB_USER: ${POSTGRES_USER:-trading}
+  DB_PASSWORD: ${POSTGRES_PASSWORD:-local-development-only}
+  DB_NAME: ${POSTGRES_DB:-trading}
+
+services:
+  postgres:
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-trading}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-development-only}
+      POSTGRES_DB: ${POSTGRES_DB:-trading}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    <<: *app
+    environment: *db-env
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  collector:
+    <<: *app
+    environment:
+      <<: *db-env
+      DISCORD_TOKEN: ${DISCORD_TOKEN:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    # Docker Desktop 重启或进程异常退出后恢复采集；手动停止时保持停止。
+    restart: unless-stopped
+    stop_grace_period: 20s
+
+  api:
+    <<: *app
+    environment: *db-env
+    command: ["uvicorn", "trading.api:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  test-postgres:
+    profiles: ["test"]
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_USER: trading_test
+      POSTGRES_PASSWORD: test-only
+      POSTGRES_DB: trading_test
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trading_test -d trading_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  tests:
+    profiles: ["test"]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: development
+    environment:
+      DB_HOST: test-postgres
+      DB_PORT: "5432"
+      DB_USER: trading_test
+      DB_PASSWORD: test-only
+      DB_NAME: trading_test
+      RUN_DB_TESTS: "1"
+    depends_on:
+      test-postgres:
+        condition: service_healthy
+    command:
+      - sh
+      - -ec
+      - ruff check --no-cache . && ruff format --check --no-cache . && alembic upgrade head && alembic check && pytest -q -p no:cacheprovider
+
+volumes:
+  postgres-data:

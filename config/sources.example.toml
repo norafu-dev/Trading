@@ -1,0 +1,10 @@
+# 历史来源配置示例；当前应用不读取此文件，来源统一在前端管理。
+# Legacy reference only. The Collector now loads sources from PostgreSQL.
+# Manage sources at http://localhost:3000; this file is no longer loaded.
+# channel_id is the actual Channel OR Thread ID. A parent channel does not
+# implicitly include its child threads. Add each thread as a separate source.
+# All messages from these authors are collected, without keyword filtering.
+[[sources]]
+name = "example-trader"
+channel_id = "123456789012345678"
+author_ids = ["234567890123456789"]

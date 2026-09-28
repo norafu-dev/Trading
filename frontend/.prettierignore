@@ -1,0 +1,5 @@
+# 格式化排除项：依赖、构建输出和自动生成的类型声明不手工改写。
+.next/
+node_modules/
+package-lock.json
+next-env.d.ts
