@@ -113,12 +113,15 @@ async def browse_navigation(engine: Database) -> MessageNavigation:
 @router.get("/messages", response_model=MessagePage)
 async def browse_messages(
     engine: Database,
+    request: Request,
     channel_id: Snowflake,
     before: Snowflake | None = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
 ) -> MessagePage:
     """读取选定频道的一页已采集消息，限制页大小并校验字符串 ID。"""
-    return await channel_messages(engine, channel_id, before, limit)
+    return await channel_messages(
+        engine, channel_id, before, limit, request.app.state.settings.message_freshness_seconds
+    )
 
 
 @router.get("/media/storage", response_model=StorageSummary)

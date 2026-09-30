@@ -67,6 +67,12 @@ export function Sidebar({ active = "collector" }: { active?: "collector" | "mess
             图片归档
           </Link>
         </Button>
+        <Button asChild variant="ghost" className="w-full justify-start">
+          <Link href="/#recovery">
+            <Activity />
+            消息补采
+          </Link>
+        </Button>
         <Button
           asChild
           variant={active === "messages" ? "secondary" : "ghost"}

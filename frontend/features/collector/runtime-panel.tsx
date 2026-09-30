@@ -78,7 +78,7 @@ export function RuntimePanel({ data, error }: { data: Dashboard | null; error: s
       </CardContent>
       <CardFooter className="gap-2 border-t pt-4 text-xs text-muted-foreground">
         <CircleHelp className="size-4" />
-        当前阶段仅实时采集，断线消息补采尚未实现。
+        实时采集与历史补采分别运行，缺口处理情况请查看“消息补采”。
       </CardFooter>
     </Card>
   );

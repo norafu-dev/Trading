@@ -67,6 +67,7 @@ services:
     <<: *app
     environment:
       <<: [*db-env, *r2-env]
+      MESSAGE_FRESHNESS_SECONDS: ${MESSAGE_FRESHNESS_SECONDS:-120}
     command: ["uvicorn", "trading.api:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
     depends_on:
       migrate:

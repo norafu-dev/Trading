@@ -59,6 +59,7 @@ async def run_collector(engine: AsyncEngine, token: str, settings: Settings | No
     try:
         async with client:
             client.monitor_task = asyncio.create_task(client.monitor())
+            client.history_task = asyncio.create_task(client.recovery.run())
             client.media_task = asyncio.create_task(
                 MediaArchiver(engine, client, settings or Settings()).run()
             )

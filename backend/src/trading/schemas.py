@@ -91,6 +91,22 @@ class DashboardResponse(BaseModel):
     messages: list[MessageSummary]
     events: list[EventSummary]
     server_time: datetime
+    checkpoints: list["CheckpointDetails"] = Field(default_factory=list)
+
+
+class CheckpointDetails(BaseModel):
+    """每个频道的补采覆盖起点、进度与失败重试状态，不代表全量 Discord 历史。"""
+
+    channel_id: str
+    name: str
+    cursor_id: str
+    target_id: str | None
+    coverage_started_at: datetime
+    state: str
+    attempts: int
+    next_attempt_at: datetime
+    last_error: str | None
+    last_completed_at: datetime | None
 
 
 class MessageChannel(BaseModel):
@@ -199,6 +215,12 @@ class CollectedMessage(MessageSummary):
     reply_to_message_id: str | None = None
     attachments: list[MessageMedia] = Field(default_factory=list)
     embeds: list[MessageEmbed] = Field(default_factory=list)
+    first_delivery: str = "unknown"
+    collection_delay_seconds: float = 0
+    edited_at: datetime | None = None
+    deleted_at: datetime | None = None
+    is_stale: bool = True
+    freshness_seconds: int = 120
 
 
 class MessagePage(BaseModel):

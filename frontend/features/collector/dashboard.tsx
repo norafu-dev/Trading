@@ -18,6 +18,7 @@ import { RuntimePanel } from "./runtime-panel";
 import { EventsPanel } from "./events-panel";
 import { MessagesPanel } from "./messages-panel";
 import { StoragePanel } from "./storage-panel";
+import { RecoveryPanel } from "./recovery-panel";
 
 /** 组合业务区域；请求读取错误和单次操作错误分别管理，避免误报 Collector 离线。 */
 export function CollectorDashboard() {
@@ -173,6 +174,7 @@ export function CollectorDashboard() {
           <EventsPanel data={data} error={error} />
         </div>
         <StoragePanel data={data} error={error} refresh={refresh} />
+        <RecoveryPanel data={data} error={error} />
         <MessagesPanel data={data} />
         <footer className="flex items-center justify-between text-xs text-muted-foreground">
           <span>Signal Desk / 消息先留存，策略后定义</span>

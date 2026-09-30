@@ -1,5 +1,7 @@
 """查询扁平频道导航、展示媒体与分页消息；不向 Discord 发起历史抓取。"""
 
+from datetime import UTC, datetime
+
 from sqlalchemy import Numeric, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncEngine
 
@@ -177,7 +179,11 @@ async def message_navigation(engine: AsyncEngine) -> MessageNavigation:
 
 
 async def channel_messages(
-    engine: AsyncEngine, channel_id: str, before: str | None, limit: int
+    engine: AsyncEngine,
+    channel_id: str,
+    before: str | None,
+    limit: int,
+    freshness_seconds: int = 120,
 ) -> MessagePage:
     """读取频道内全部已配置作者消息，以数字 Snowflake 游标稳定向前翻页。"""
     message_order = cast(Message.message_id, Numeric)
@@ -247,6 +253,15 @@ async def channel_messages(
                 reply_to_message_id=snapshot.get("reply_to_message_id"),
                 attachments=attachments,
                 embeds=embeds,
+                first_delivery=row["first_delivery"],
+                collection_delay_seconds=max(
+                    0, (row["first_seen_at"] - row["created_at"]).total_seconds()
+                ),
+                edited_at=snapshot.get("edited_at"),
+                deleted_at=row["deleted_at"],
+                is_stale=(datetime.now(UTC) - row["version_at"]).total_seconds()
+                > freshness_seconds,
+                freshness_seconds=freshness_seconds,
             )
         )
     return MessagePage(messages=messages, next_before=page[-1]["message_id"] if has_older else None)

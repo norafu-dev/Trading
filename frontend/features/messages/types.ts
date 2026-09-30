@@ -26,6 +26,12 @@ export type CollectedMessage = {
   content: string;
   created_at: string;
   first_seen_at: string;
+  first_delivery: "unknown" | "realtime" | "backfill";
+  collection_delay_seconds: number;
+  edited_at: string | null;
+  deleted_at: string | null;
+  is_stale: boolean;
+  freshness_seconds: number;
   author_name: string | null;
   reply_to_message_id: string | null;
   attachments: Array<{

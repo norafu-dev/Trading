@@ -51,6 +51,16 @@ export type StorageSummary = {
   last_error: string | null;
 };
 export type Dashboard = {
+  checkpoints: Array<{
+    channel_id: string;
+    name: string;
+    state: string;
+    coverage_started_at: string;
+    attempts: number;
+    next_attempt_at: string;
+    last_error: string | null;
+    last_completed_at: string | null;
+  }>;
   storage: StorageSummary;
   sources: Source[];
   runtime: Runtime;

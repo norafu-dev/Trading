@@ -16,6 +16,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useMessageFeed } from "./use-message-feed";
 import type { MessageChannel } from "./types";
 
+const deliveryLabels = { realtime: "实时", backfill: "历史补采", unknown: "来源未知" };
+
 /** 将 UTC 时间转换为本地完整日期，作为消息组的日期分隔标题。 */
 function dayLabel(value: string) {
   return new Date(value).toLocaleDateString("zh-CN", {
@@ -144,7 +146,7 @@ export function MessageFeed({ channel }: { channel: MessageChannel }) {
                 aria-label={`来自 ${authorName} 的消息`}
               >
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline gap-3">
+                  <div className="flex flex-wrap items-baseline gap-3">
                     <span className="font-semibold">{authorName}</span>
                     <time
                       dateTime={message.created_at}
@@ -157,6 +159,36 @@ export function MessageFeed({ channel }: { channel: MessageChannel }) {
                         hour12: false,
                       })}
                     </time>
+                    <Badge
+                      variant="outline"
+                      title={`首次入库延迟 ${message.collection_delay_seconds.toFixed(1)} 秒`}
+                    >
+                      {deliveryLabels[message.first_delivery]}
+                    </Badge>
+                    {message.edited_at && (
+                      <Badge
+                        variant="secondary"
+                        title={new Date(message.edited_at).toLocaleString("zh-CN")}
+                      >
+                        已编辑
+                      </Badge>
+                    )}
+                    {message.deleted_at && (
+                      <Badge
+                        variant="destructive"
+                        title={new Date(message.deleted_at).toLocaleString("zh-CN")}
+                      >
+                        已删除 · 原文留存
+                      </Badge>
+                    )}
+                    {message.is_stale && (
+                      <span
+                        className="text-xs text-muted-foreground"
+                        title={`最后消息版本已超过 ${message.freshness_seconds} 秒，仅为时效提示，不是执行判定`}
+                      >
+                        超过时效提示窗口
+                      </span>
+                    )}
                   </div>
                   {message.reply_to_message_id && (
                     <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
@@ -165,7 +197,9 @@ export function MessageFeed({ channel }: { channel: MessageChannel }) {
                     </p>
                   )}
                   {message.content && (
-                    <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-7">
+                    <p
+                      className={`mt-1 whitespace-pre-wrap break-words text-sm leading-7 ${message.deleted_at ? "text-muted-foreground" : ""}`}
+                    >
                       {message.content}
                     </p>
                   )}

@@ -8,6 +8,7 @@ from sqlalchemy import delete, update
 
 from trading.config import Settings
 from trading.db.models import (
+    ChannelCheckpoint,
     ChannelGroup,
     ChannelSource,
     CollectorEvent,
@@ -15,6 +16,7 @@ from trading.db.models import (
     MediaArchive,
     MediaObject,
     Message,
+    MessageDeletion,
     MessageVersion,
 )
 from trading.db.session import create_engine
@@ -34,6 +36,8 @@ async def engine():
             for model in (
                 MediaArchive,
                 MediaObject,
+                MessageDeletion,
+                ChannelCheckpoint,
                 MessageVersion,
                 Message,
                 ChannelSource,

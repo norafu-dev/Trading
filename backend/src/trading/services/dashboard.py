@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from trading.config import Settings
+from trading.db.checkpoints import checkpoint_summary
 from trading.db.dashboard import read_dashboard
 from trading.db.media import storage_summary
 from trading.schemas import DashboardResponse, RuntimeDetails, RuntimeStatus
@@ -42,4 +43,5 @@ async def dashboard_snapshot(
         messages=records.messages,
         events=records.events,
         server_time=now,
+        checkpoints=await checkpoint_summary(engine),
     )
