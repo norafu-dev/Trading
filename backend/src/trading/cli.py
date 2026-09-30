@@ -1,8 +1,9 @@
-"""解析 check/collect 命令并管理数据库资源与脱敏的进程退出状态。"""
+"""解析采集、检查和显式媒体迁移命令并管理数据库资源与脱敏的进程退出状态。"""
 
 import argparse
 import asyncio
 import contextlib
+import json
 import logging
 import sys
 
@@ -12,6 +13,8 @@ from trading.collector.runtime import run_collector
 from trading.config import Settings
 from trading.db.control import add_event, update_runtime
 from trading.db.session import check_database, create_engine
+from trading.media.relocate import reorganize_media
+from trading.media.storage import R2Storage
 
 
 async def run(command: str) -> None:
@@ -31,7 +34,17 @@ async def run(command: str) -> None:
         logging.info("database_ready revision=%s", revision)
         if command == "check":
             return
-        await run_collector(engine, settings.discord_token.get_secret_value().strip())
+        if command == "reorganize-media":
+            if not settings.r2_configured:
+                raise RuntimeError("R2 configuration is missing")
+            storage = R2Storage(settings)
+            try:
+                result = await reorganize_media(engine, storage)
+                print(json.dumps(result))
+            finally:
+                storage.close()
+            return
+        await run_collector(engine, settings.discord_token.get_secret_value().strip(), settings)
     except Exception as error:
         failed = True
         if command == "collect":
@@ -50,7 +63,7 @@ async def run(command: str) -> None:
 def main() -> None:
     """解析命令行参数并运行异步入口；失败时返回非零退出码，不打印原始异常。"""
     parser = argparse.ArgumentParser(description="M1 Discord ingestion")
-    parser.add_argument("command", choices=["check", "collect"])
+    parser.add_argument("command", choices=["check", "collect", "reorganize-media"])
     args = parser.parse_args()
     try:
         asyncio.run(run(args.command))
@@ -58,7 +71,7 @@ def main() -> None:
         pass
     except Exception as error:
         print(
-            f"Collector failure ({type(error).__name__}); inspect panel and configuration.",
+            f"Trading command failure ({type(error).__name__}); inspect panel and configuration.",
             file=sys.stderr,
         )
         raise SystemExit(1) from None

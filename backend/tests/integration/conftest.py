@@ -12,6 +12,8 @@ from trading.db.models import (
     ChannelSource,
     CollectorEvent,
     CollectorRuntime,
+    MediaArchive,
+    MediaObject,
     Message,
     MessageVersion,
 )
@@ -29,7 +31,15 @@ async def engine():
     engine = create_engine(settings)
     try:
         async with engine.begin() as connection:
-            for model in (MessageVersion, Message, ChannelSource, ChannelGroup, CollectorEvent):
+            for model in (
+                MediaArchive,
+                MediaObject,
+                MessageVersion,
+                Message,
+                ChannelSource,
+                ChannelGroup,
+                CollectorEvent,
+            ):
                 await connection.execute(delete(model))
             await connection.execute(
                 update(CollectorRuntime).values(

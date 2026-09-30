@@ -1,6 +1,6 @@
 /** Discord 风格的只读聊天区；分页读取留存消息，不提供发送或交易操作。 */
 import { Fragment, useLayoutEffect, useRef } from "react";
-import Image from "next/image";
+import { ArchiveImage } from "./archive-image";
 import {
   Hash,
   ArrowDown,
@@ -28,7 +28,7 @@ function dayLabel(value: string) {
 /** 判断附件是否可直接作为图片展示；Discord 未提供类型时按常见扩展名补充判断。 */
 function isImageAttachment(filename: string, contentType: string | null) {
   return Boolean(
-    contentType?.startsWith("image/") || /\.(?:png|jpe?g|webp|gif)$/i.test(filename),
+    contentType?.startsWith("image/") || /\.(?:png|jpe?g|webp|gif|avif)$/i.test(filename),
   );
 }
 
@@ -171,22 +171,13 @@ export function MessageFeed({ channel }: { channel: MessageChannel }) {
                   )}
                   {message.attachments.map((attachment) =>
                     isImageAttachment(attachment.filename, attachment.content_type) ? (
-                      <a
+                      <ArchiveImage
                         key={attachment.url}
-                        href={attachment.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-3 block w-fit overflow-hidden rounded-lg border bg-muted"
-                      >
-                        <Image
-                          src={attachment.url}
-                          alt={attachment.filename}
-                          width={720}
-                          height={480}
-                          unoptimized
-                          className="max-h-[520px] w-auto max-w-[720px] object-contain"
-                        />
-                      </a>
+                        url={attachment.url}
+                        alt={attachment.filename}
+                        status={attachment.archive_status}
+                        error={attachment.archive_error}
+                      />
                     ) : (
                       <a
                         key={attachment.url}
@@ -232,13 +223,11 @@ export function MessageFeed({ channel }: { channel: MessageChannel }) {
                         </div>
                       )}
                       {embed.image_url && (
-                        <Image
-                          src={embed.image_url}
+                        <ArchiveImage
+                          url={embed.image_url}
                           alt={embed.title || "Discord Embed 图片"}
-                          width={720}
-                          height={480}
-                          unoptimized
-                          className="max-h-[520px] w-auto max-w-full object-contain"
+                          status={embed.archive_status}
+                          error={embed.archive_error}
                         />
                       )}
                       {(embed.footer || embed.timestamp) && (

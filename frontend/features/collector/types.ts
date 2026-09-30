@@ -38,7 +38,20 @@ export type Event = {
   message: string;
   occurred_at: string;
 };
+export type StorageSummary = {
+  configured: boolean;
+  object_count: number;
+  size_bytes: number;
+  warning_bytes: number;
+  capacity_warning: boolean;
+  pending: number;
+  processing: number;
+  stored: number;
+  failed: number;
+  last_error: string | null;
+};
 export type Dashboard = {
+  storage: StorageSummary;
   sources: Source[];
   runtime: Runtime;
   total_messages: number;

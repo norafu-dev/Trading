@@ -1,11 +1,10 @@
 """查询扁平频道导航、展示媒体与分页消息；不向 Discord 发起历史抓取。"""
 
-from urllib.parse import urlparse
-
 from sqlalchemy import Numeric, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from trading.db.models import ChannelGroup, ChannelSource, Message
+from trading.db.models import ChannelGroup, ChannelSource, MediaArchive, Message
+from trading.media.candidates import discord_media_url, media_key
 from trading.schemas import (
     CollectedMessage,
     MessageChannel,
@@ -16,21 +15,6 @@ from trading.schemas import (
     MessageNavigation,
     MessagePage,
 )
-
-
-def discord_media_url(value: object) -> str | None:
-    """只返回 Discord CDN 或代理域名的 HTTPS 媒体地址。"""
-    if not isinstance(value, str):
-        return None
-    parsed = urlparse(value)
-    if parsed.scheme == "https" and parsed.netloc in {
-        "cdn.discordapp.com",
-        "media.discordapp.net",
-        "images-ext-1.discordapp.net",
-        "images-ext-2.discordapp.net",
-    }:
-        return value
-    return None
 
 
 def visible_attachments(snapshot: dict) -> list[MessageMedia]:
@@ -67,10 +51,10 @@ def visible_embeds(snapshot: dict) -> list[MessageEmbed]:
         image = embed.get("image") if isinstance(embed.get("image"), dict) else {}
         thumbnail = embed.get("thumbnail") if isinstance(embed.get("thumbnail"), dict) else {}
         image_url = (
-            discord_media_url(image.get("proxy_url"))
-            or discord_media_url(image.get("url"))
-            or discord_media_url(thumbnail.get("proxy_url"))
+            discord_media_url(image.get("url"))
+            or discord_media_url(image.get("proxy_url"))
             or discord_media_url(thumbnail.get("url"))
+            or discord_media_url(thumbnail.get("proxy_url"))
         )
         title = embed.get("title") if isinstance(embed.get("title"), str) else None
         description = (
@@ -212,6 +196,18 @@ async def channel_messages(
             .mappings()
             .first()
         )
+        archives = (
+            (
+                await connection.execute(
+                    select(MediaArchive.__table__).where(
+                        MediaArchive.message_id.in_([row["message_id"] for row in rows]),
+                    )
+                )
+            )
+            .mappings()
+            .all()
+        )
+    archive_lookup = {(row["message_id"], row["media_key"]): row for row in archives}
     has_older = len(rows) > limit
     page = rows[:limit]
     messages = []
@@ -220,6 +216,20 @@ async def channel_messages(
         configured_name = (
             source["kol_name"] if source and row["author_id"] in source["author_ids"] else None
         )
+        attachments = visible_attachments(snapshot)
+        embeds = visible_embeds(snapshot)
+        for media in [*attachments, *embeds]:
+            url = media.url if isinstance(media, MessageMedia) else media.image_url
+            archive = archive_lookup.get((row["message_id"], media_key(url))) if url else None
+            if archive:
+                media.archive_status = archive["status"]
+                media.archive_error = archive["last_error"]
+                if archive["status"] == "stored":
+                    stored_url = f"/api/media/{archive['id']}"
+                    if isinstance(media, MessageMedia):
+                        media.url = stored_url
+                    else:
+                        media.image_url = stored_url
         messages.append(
             CollectedMessage(
                 **{
@@ -235,8 +245,8 @@ async def channel_messages(
                 },
                 author_name=configured_name or snapshot.get("author_name") or row["author_id"],
                 reply_to_message_id=snapshot.get("reply_to_message_id"),
-                attachments=visible_attachments(snapshot),
-                embeds=visible_embeds(snapshot),
+                attachments=attachments,
+                embeds=embeds,
             )
         )
     return MessagePage(messages=messages, next_before=page[-1]["message_id"] if has_older else None)

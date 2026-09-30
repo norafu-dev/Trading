@@ -7,6 +7,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from trading.collector.messages import MessageSnapshot
+from trading.db.media import enqueue_images
 from trading.db.models import Message, MessageVersion
 
 
@@ -48,6 +49,7 @@ async def store_snapshot(engine: AsyncEngine, snapshot: MessageSnapshot) -> bool
     )
     async with engine.begin() as connection:
         await connection.execute(statement)
+        await enqueue_images(connection, payload)
         new_version = await connection.scalar(
             insert(MessageVersion)
             .values(

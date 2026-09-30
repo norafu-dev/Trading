@@ -8,6 +8,7 @@ import {
   ArrowUpRight,
   ShieldCheck,
   MessageSquare,
+  HardDrive,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +59,12 @@ export function Sidebar({ active = "collector" }: { active?: "collector" | "mess
           <Link href="/#activity">
             <Activity />
             运行动态
+          </Link>
+        </Button>
+        <Button asChild variant="ghost" className="w-full justify-start">
+          <Link href="/#storage">
+            <HardDrive />
+            图片归档
           </Link>
         </Button>
         <Button

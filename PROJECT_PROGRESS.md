@@ -203,3 +203,16 @@ duplicate processing does not create a second record
 ```
 
 No real-money trading functionality should be required for this checkpoint.
+
+## 10. 图片目录调整（2026-09-30）
+
+按用户确认，R2 图片改为 `discord-images/{频道ID}/{原消息月份}/{SHA256}.{扩展名}`。
+月份按 Asia/Tokyo 计算，同频道同月去重，不跨频道或月份共享文件。旧哈希目录使用
+显式维护命令迁移，完整读取校验后切换数据库引用，再删除旧对象；支持中断后继续。
+已保留升级前数据库备份，数据库结构已升级到 `0006_channel_media_layout`。
+Docker 后端 Ruff、格式、迁移一致性及 66 项测试通过；运行中 Collector 已恢复连接。
+真实迁移完成：556 个旧对象重排为 557 个新对象，旧云端对象与旧数据库引用均为 0，
+567 条归档引用有效；3 个频道的稳定图片接口抽检通过。另有 10 个既有历史图片
+归档失败任务尚未恢复，不计入已存对象迁移。
+云端迁移验收结果与恢复方法见 [R2_IMAGE_ARCHIVE.md](docs/R2_IMAGE_ARCHIVE.md)。
+本文件前面的开发顺序属于早期计划，当前已实现范围以项目说明、架构及上述验收文档为准。

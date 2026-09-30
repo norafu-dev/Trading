@@ -28,12 +28,20 @@ export type CollectedMessage = {
   first_seen_at: string;
   author_name: string | null;
   reply_to_message_id: string | null;
-  attachments: Array<{ filename: string; url: string; content_type: string | null }>;
+  attachments: Array<{
+    filename: string;
+    url: string;
+    content_type: string | null;
+    archive_status: string | null;
+    archive_error: string | null;
+  }>;
   embeds: Array<{
     title: string | null;
     description: string | null;
     url: string | null;
     image_url: string | null;
+    archive_status: string | null;
+    archive_error: string | null;
     fields: Array<{ name: string; value: string; inline: boolean }>;
     footer: string | null;
     timestamp: string | null;

@@ -36,6 +36,7 @@ class Collector(discord.Client):
         self.write_lock = asyncio.Lock()
         self.backfill_lock = asyncio.Lock()
         self.monitor_task: asyncio.Task | None = None
+        self.media_task: asyncio.Task | None = None
         self.subscriptions = SourceSubscriptions(engine, self)
 
     async def sync_sources(self) -> None:
@@ -182,9 +183,13 @@ class Collector(discord.Client):
         await self.close()
 
     async def close(self) -> None:
-        """先取消独立心跳任务，再关闭 Discord 连接；避免等待当前任务自身。"""
+        """先取消心跳和图片归档任务，再关闭 Discord 连接；避免等待当前任务自身。"""
         if self.monitor_task and self.monitor_task is not asyncio.current_task():
             self.monitor_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self.monitor_task
+        if self.media_task and self.media_task is not asyncio.current_task():
+            self.media_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self.media_task
         await super().close()

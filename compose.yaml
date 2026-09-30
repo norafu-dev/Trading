@@ -16,6 +16,15 @@ x-db-env: &db-env
   DB_PASSWORD: ${POSTGRES_PASSWORD:-local-development-only}
   DB_NAME: ${POSTGRES_DB:-trading}
 
+# R2 密钥仅注入 API 与 Collector，不进入浏览器构建或迁移服务。
+x-r2-env: &r2-env
+  R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+  R2_BUCKET: ${R2_BUCKET:-}
+  R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
+  R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
+  MEDIA_WARNING_BYTES: ${MEDIA_WARNING_BYTES:-8000000000}
+  MEDIA_MAX_IMAGE_BYTES: ${MEDIA_MAX_IMAGE_BYTES:-25000000}
+
 services:
   postgres:
     image: postgres:17-bookworm
@@ -44,7 +53,7 @@ services:
   collector:
     <<: *app
     environment:
-      <<: *db-env
+      <<: [*db-env, *r2-env]
       DISCORD_TOKEN: ${DISCORD_TOKEN:-}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     depends_on:
@@ -56,7 +65,8 @@ services:
 
   api:
     <<: *app
-    environment: *db-env
+    environment:
+      <<: [*db-env, *r2-env]
     command: ["uvicorn", "trading.api:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
     depends_on:
       migrate:

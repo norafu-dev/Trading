@@ -68,7 +68,23 @@ class EventSummary(BaseModel):
     occurred_at: datetime
 
 
+class StorageSummary(BaseModel):
+    """本项目确认归档的容量及任务状态，不代表整个 Cloudflare 账户账单。"""
+
+    configured: bool
+    object_count: int
+    size_bytes: int
+    warning_bytes: int
+    capacity_warning: bool
+    pending: int
+    processing: int
+    stored: int
+    failed: int
+    last_error: str | None
+
+
 class DashboardResponse(BaseModel):
+    storage: StorageSummary
     sources: list[SourceDetails]
     runtime: RuntimeStatus
     total_messages: int
@@ -149,6 +165,8 @@ class MessageMedia(BaseModel):
     filename: str
     url: str
     content_type: str | None = None
+    archive_status: str | None = None
+    archive_error: str | None = None
 
 
 class MessageEmbedField(BaseModel):
@@ -166,6 +184,8 @@ class MessageEmbed(BaseModel):
     description: str | None = None
     url: str | None = None
     image_url: str | None = None
+    archive_status: str | None = None
+    archive_error: str | None = None
     fields: list[MessageEmbedField] = Field(default_factory=list)
     footer: str | None = None
     timestamp: datetime | None = None
