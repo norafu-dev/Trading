@@ -1,4 +1,4 @@
-/** 消息分页和刷新状态；只更新最新一页时不丢弃已经加载的历史记录。 */
+/** 消息分页和刷新状态；刷新已加载范围时保留历史记录并更新消息变更。 */
 import { useEffect, useRef, useState } from "react";
 import { readMessages } from "./api";
 import type { CollectedMessage, MessagePage } from "./types";
@@ -22,31 +22,38 @@ export function useMessageFeed(channelId: string) {
   const [loadingOlder, setLoadingOlder] = useState(false);
   const lifecycle = useRef<AbortController | null>(null);
   const olderRequest = useRef(false);
+  const oldestLoadedId = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     const controller = new AbortController();
     lifecycle.current = controller;
     let timer: ReturnType<typeof setTimeout>;
-    let newestId: string | undefined;
     /** 读取最近消息并保留历史页；刷新失败显示错误，不清空已有记录。 */
     async function poll() {
       try {
         const recent = await readMessages(channelId, controller.signal);
-        // 两轮刷新之间超过一页时补齐中间消息，避免只合并最新 50 条造成缺口。
+        // 复核所有已加载页，使较早消息的编辑、删除与时效标记也能及时更新。
         let incoming = recent.messages;
         let cursor = recent.next_before;
         while (
-          newestId &&
+          oldestLoadedId.current &&
           cursor &&
           incoming.length &&
-          BigInt(incoming[0].message_id) > BigInt(newestId)
+          BigInt(incoming[0].message_id) > BigInt(oldestLoadedId.current)
         ) {
           const bridge = await readMessages(channelId, controller.signal, cursor);
           incoming = [...bridge.messages, ...incoming];
           cursor = bridge.next_before;
         }
         if (controller.signal.aborted) return;
-        newestId = incoming.at(-1)?.message_id ?? newestId;
+        // 并发翻页可能已加载更早记录；刷新不能把覆盖边界向前移动。
+        const firstId = incoming[0]?.message_id;
+        if (
+          firstId &&
+          (!oldestLoadedId.current || BigInt(firstId) < BigInt(oldestLoadedId.current))
+        ) {
+          oldestLoadedId.current = firstId;
+        }
         setPage((previous) =>
           previous
             ? { ...previous, messages: mergeMessages(previous.messages, incoming) }
@@ -77,6 +84,13 @@ export function useMessageFeed(channelId: string) {
     try {
       const older = await readMessages(channelId, controller.signal, page.next_before);
       if (controller.signal.aborted) return;
+      const firstId = older.messages[0]?.message_id;
+      if (
+        firstId &&
+        (!oldestLoadedId.current || BigInt(firstId) < BigInt(oldestLoadedId.current))
+      ) {
+        oldestLoadedId.current = firstId;
+      }
       setPage((previous) => ({
         messages: mergeMessages(previous?.messages ?? [], older.messages),
         next_before: older.next_before,

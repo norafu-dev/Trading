@@ -3,11 +3,15 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi.responses import RedirectResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from trading.config import Snowflake
+from trading.db.media import retry_failed_images, storage_summary
 from trading.db.message_browser import channel_messages, message_navigation
+from trading.db.models import MediaArchive, MediaObject
 from trading.db.session import check_database
 from trading.schemas import (
     ChannelGroupDetails,
@@ -18,6 +22,7 @@ from trading.schemas import (
     MessagePage,
     SourceDetails,
     SourceInput,
+    StorageSummary,
 )
 from trading.services.channel_groups import (
     create_channel_group,
@@ -47,9 +52,9 @@ async def health(engine: Database) -> dict[str, str]:
 
 
 @router.get("/dashboard", response_model=DashboardResponse)
-async def dashboard(engine: Database) -> DashboardResponse:
+async def dashboard(engine: Database, request: Request) -> DashboardResponse:
     """返回经过响应模型约束的概览快照，包含心跳推导后的进程状态。"""
-    return await dashboard_snapshot(engine)
+    return await dashboard_snapshot(engine, request.app.state.settings)
 
 
 @router.post("/sources", status_code=201, response_model=SourceDetails)
@@ -108,9 +113,46 @@ async def browse_navigation(engine: Database) -> MessageNavigation:
 @router.get("/messages", response_model=MessagePage)
 async def browse_messages(
     engine: Database,
+    request: Request,
     channel_id: Snowflake,
     before: Snowflake | None = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
 ) -> MessagePage:
     """读取选定频道的一页已采集消息，限制页大小并校验字符串 ID。"""
-    return await channel_messages(engine, channel_id, before, limit)
+    return await channel_messages(
+        engine, channel_id, before, limit, request.app.state.settings.message_freshness_seconds
+    )
+
+
+@router.get("/media/storage", response_model=StorageSummary)
+async def media_storage(engine: Database, request: Request) -> dict:
+    """返回非敏感的归档状态和本项目容量，配置齐全不等于连接验收通过。"""
+    settings = request.app.state.settings
+    return await storage_summary(engine, settings.r2_configured, settings.media_warning_bytes)
+
+
+@router.post("/media/retry")
+async def retry_media(engine: Database, request: Request) -> dict[str, int]:
+    """把失败任务恢复为待处理，仅已配置 R2 时允许主动重试。"""
+    if request.app.state.storage is None:
+        raise HTTPException(status_code=409, detail="请先在本地配置 R2 并重建 API 与 Collector")
+    return {"retried": await retry_failed_images(engine)}
+
+
+@router.get("/media/{archive_id}")
+async def archived_image(archive_id: UUID, engine: Database, request: Request) -> RedirectResponse:
+    """稳定媒体入口每次生成新签名，不由 API 代理文件流量或返回凭证。"""
+    async with engine.connect() as connection:
+        key = await connection.scalar(
+            select(MediaObject.object_key)
+            .join(
+                MediaArchive,
+                MediaArchive.object_key == MediaObject.object_key,
+            )
+            .where(MediaArchive.id == str(archive_id), MediaArchive.status == "stored")
+        )
+    if key is None:
+        raise HTTPException(status_code=404, detail="图片尚未归档或记录不存在")
+    if request.app.state.storage is None:
+        raise HTTPException(status_code=503, detail="R2 读取配置尚未加载")
+    return RedirectResponse(request.app.state.storage.read_url(key), status_code=307)

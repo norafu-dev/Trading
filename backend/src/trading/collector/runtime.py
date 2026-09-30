@@ -7,7 +7,9 @@ from datetime import UTC, datetime
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from trading.collector.client import HEARTBEAT_INTERVAL_SECONDS, Collector
+from trading.config import Settings
 from trading.db.control import add_event, update_runtime
+from trading.media.worker import MediaArchiver
 
 
 async def wait_for_configuration(engine: AsyncEngine) -> None:
@@ -28,7 +30,7 @@ async def wait_for_configuration(engine: AsyncEngine) -> None:
             loop.remove_signal_handler(signum)
 
 
-async def run_collector(engine: AsyncEngine, token: str) -> None:
+async def run_collector(engine: AsyncEngine, token: str, settings: Settings | None = None) -> None:
     """初始化进程状态，再等待配置或连接 Discord；负责信号绑定和资源释放。"""
     now = datetime.now(UTC)
     await update_runtime(
@@ -57,6 +59,10 @@ async def run_collector(engine: AsyncEngine, token: str) -> None:
     try:
         async with client:
             client.monitor_task = asyncio.create_task(client.monitor())
+            client.history_task = asyncio.create_task(client.recovery.run())
+            client.media_task = asyncio.create_task(
+                MediaArchiver(engine, client, settings or Settings()).run()
+            )
             # discord.py-self 使用用户账号 Token；不传普通 Bot 客户端的认证参数。
             await client.start(token, reconnect=True)
         if client.failed:

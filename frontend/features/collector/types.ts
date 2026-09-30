@@ -38,7 +38,30 @@ export type Event = {
   message: string;
   occurred_at: string;
 };
+export type StorageSummary = {
+  configured: boolean;
+  object_count: number;
+  size_bytes: number;
+  warning_bytes: number;
+  capacity_warning: boolean;
+  pending: number;
+  processing: number;
+  stored: number;
+  failed: number;
+  last_error: string | null;
+};
 export type Dashboard = {
+  checkpoints: Array<{
+    channel_id: string;
+    name: string;
+    state: string;
+    coverage_started_at: string;
+    attempts: number;
+    next_attempt_at: string;
+    last_error: string | null;
+    last_completed_at: string | null;
+  }>;
+  storage: StorageSummary;
   sources: Source[];
   runtime: Runtime;
   total_messages: number;

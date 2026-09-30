@@ -8,11 +8,15 @@ from sqlalchemy import delete, update
 
 from trading.config import Settings
 from trading.db.models import (
+    ChannelCheckpoint,
     ChannelGroup,
     ChannelSource,
     CollectorEvent,
     CollectorRuntime,
+    MediaArchive,
+    MediaObject,
     Message,
+    MessageDeletion,
     MessageVersion,
 )
 from trading.db.session import create_engine
@@ -29,7 +33,17 @@ async def engine():
     engine = create_engine(settings)
     try:
         async with engine.begin() as connection:
-            for model in (MessageVersion, Message, ChannelSource, ChannelGroup, CollectorEvent):
+            for model in (
+                MediaArchive,
+                MediaObject,
+                MessageDeletion,
+                ChannelCheckpoint,
+                MessageVersion,
+                Message,
+                ChannelSource,
+                ChannelGroup,
+                CollectorEvent,
+            ):
                 await connection.execute(delete(model))
             await connection.execute(
                 update(CollectorRuntime).values(

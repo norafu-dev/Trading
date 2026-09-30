@@ -34,6 +34,23 @@ class Settings(BaseSettings):
     db_name: str = "trading"
     discord_token: SecretStr = SecretStr("")
     log_level: str = "INFO"
+    r2_account_id: str = Field(default="", pattern=r"^(?:[a-fA-F0-9]{32})?$")
+    r2_bucket: str = Field(default="", pattern=r"^(?:[a-z0-9][a-z0-9.-]{1,61}[a-z0-9])?$")
+    r2_access_key_id: SecretStr = SecretStr("")
+    r2_secret_access_key: SecretStr = SecretStr("")
+    media_warning_bytes: int = Field(default=8_000_000_000, ge=1)
+    media_max_image_bytes: int = Field(default=25_000_000, ge=1, le=100_000_000)
+    message_freshness_seconds: int = Field(default=120, ge=1, le=86400)
+
+    @property
+    def r2_configured(self) -> bool:
+        """只确认必要字段齐全，不把已填配置误报为远端连接成功。"""
+        return bool(
+            self.r2_account_id
+            and self.r2_bucket
+            and self.r2_access_key_id.get_secret_value().strip()
+            and self.r2_secret_access_key.get_secret_value().strip()
+        )
 
     @field_validator("log_level")
     @classmethod

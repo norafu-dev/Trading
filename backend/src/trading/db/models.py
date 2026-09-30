@@ -37,6 +37,8 @@ class Message(Base):
     first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    first_delivery: Mapped[str] = mapped_column(String(20), default="unknown")
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class MessageVersion(Base):
@@ -47,7 +49,32 @@ class MessageVersion(Base):
     fingerprint: Mapped[str] = mapped_column(String(64), primary_key=True)
     version_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    observation_source: Mapped[str] = mapped_column(String(20), default="unknown")
     snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB)
+
+
+class MessageDeletion(Base):
+    """删除事件墓碑；允许先于消息入库，阻止随后到达的旧消息复活。"""
+
+    __tablename__ = "message_deletions"
+    message_id: Mapped[str] = mapped_column(String(20), primary_key=True)
+    channel_id: Mapped[str] = mapped_column(String(20))
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class ChannelCheckpoint(Base):
+    """独立历史扫描进度；实时消息不能推进游标，失败后保留目标与重试时间。"""
+
+    __tablename__ = "channel_checkpoints"
+    channel_id: Mapped[str] = mapped_column(String(20), primary_key=True)
+    cursor_id: Mapped[str] = mapped_column(String(20))
+    target_id: Mapped[str | None] = mapped_column(String(20))
+    coverage_started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    state: Mapped[str] = mapped_column(String(20))
+    attempts: Mapped[int] = mapped_column(Integer)
+    next_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[str | None] = mapped_column(Text)
+    last_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class ChannelSource(Base):
@@ -98,3 +125,38 @@ class CollectorEvent(Base):
     level: Mapped[str] = mapped_column(String(10))
     message: Mapped[str] = mapped_column(Text)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class MediaObject(Base):
+    """按频道和月份独立存放的 R2 对象；同一目录按原始字节 SHA256 去重。"""
+
+    __tablename__ = "media_objects"
+    digest: Mapped[str] = mapped_column(String(64))
+    object_key: Mapped[str] = mapped_column(String(150), primary_key=True)
+    size_bytes: Mapped[int] = mapped_column(BigInteger)
+    content_type: Mapped[str] = mapped_column(String(50))
+    stored_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class MediaArchive(Base):
+    """随消息事务创建的持久任务；租约过期后可恢复，不修改消息快照。"""
+
+    __tablename__ = "media_archives"
+    __table_args__ = (
+        Index("ix_media_archives_due", "status", "next_attempt_at"),
+        Index("ix_media_archives_message", "message_id", "media_key", unique=True),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    message_id: Mapped[str] = mapped_column(String(20), ForeignKey("messages.message_id"))
+    media_key: Mapped[str] = mapped_column(String(64))
+    source_url: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(20))
+    attempts: Mapped[int] = mapped_column(Integer)
+    next_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    object_key: Mapped[str | None] = mapped_column(
+        String(150), ForeignKey("media_objects.object_key", name="fk_media_archives_object_key")
+    )
+    last_error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

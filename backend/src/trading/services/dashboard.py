@@ -4,7 +4,10 @@ from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from trading.config import Settings
+from trading.db.checkpoints import checkpoint_summary
 from trading.db.dashboard import read_dashboard
+from trading.db.media import storage_summary
 from trading.schemas import DashboardResponse, RuntimeDetails, RuntimeStatus
 
 HEARTBEAT_TIMEOUT_SECONDS = 30
@@ -25,15 +28,20 @@ def visible_runtime(runtime: RuntimeDetails, now: datetime) -> RuntimeStatus:
     )
 
 
-async def dashboard_snapshot(engine: AsyncEngine) -> DashboardResponse:
+async def dashboard_snapshot(
+    engine: AsyncEngine, settings: Settings | None = None
+) -> DashboardResponse:
     """组合数据库记录与推导状态，生成供前端使用的完整响应。"""
+    settings = settings or Settings()
     records = await read_dashboard(engine)
     now = datetime.now(UTC)
     return DashboardResponse(
+        storage=await storage_summary(engine, settings.r2_configured, settings.media_warning_bytes),
         sources=records.sources,
         runtime=visible_runtime(records.runtime, now),
         total_messages=records.total_messages,
         messages=records.messages,
         events=records.events,
         server_time=now,
+        checkpoints=await checkpoint_summary(engine),
     )

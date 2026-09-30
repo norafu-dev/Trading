@@ -1,6 +1,6 @@
 /** Discord 风格的只读聊天区；分页读取留存消息，不提供发送或交易操作。 */
 import { Fragment, useLayoutEffect, useRef } from "react";
-import Image from "next/image";
+import { ArchiveImage } from "./archive-image";
 import {
   Hash,
   ArrowDown,
@@ -16,6 +16,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useMessageFeed } from "./use-message-feed";
 import type { MessageChannel } from "./types";
 
+const deliveryLabels = { realtime: "实时", backfill: "历史补采", unknown: "来源未知" };
+
 /** 将 UTC 时间转换为本地完整日期，作为消息组的日期分隔标题。 */
 function dayLabel(value: string) {
   return new Date(value).toLocaleDateString("zh-CN", {
@@ -28,7 +30,7 @@ function dayLabel(value: string) {
 /** 判断附件是否可直接作为图片展示；Discord 未提供类型时按常见扩展名补充判断。 */
 function isImageAttachment(filename: string, contentType: string | null) {
   return Boolean(
-    contentType?.startsWith("image/") || /\.(?:png|jpe?g|webp|gif)$/i.test(filename),
+    contentType?.startsWith("image/") || /\.(?:png|jpe?g|webp|gif|avif)$/i.test(filename),
   );
 }
 
@@ -144,7 +146,7 @@ export function MessageFeed({ channel }: { channel: MessageChannel }) {
                 aria-label={`来自 ${authorName} 的消息`}
               >
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline gap-3">
+                  <div className="flex flex-wrap items-baseline gap-3">
                     <span className="font-semibold">{authorName}</span>
                     <time
                       dateTime={message.created_at}
@@ -157,6 +159,36 @@ export function MessageFeed({ channel }: { channel: MessageChannel }) {
                         hour12: false,
                       })}
                     </time>
+                    <Badge
+                      variant="outline"
+                      title={`首次入库延迟 ${message.collection_delay_seconds.toFixed(1)} 秒`}
+                    >
+                      {deliveryLabels[message.first_delivery]}
+                    </Badge>
+                    {message.edited_at && (
+                      <Badge
+                        variant="secondary"
+                        title={new Date(message.edited_at).toLocaleString("zh-CN")}
+                      >
+                        已编辑
+                      </Badge>
+                    )}
+                    {message.deleted_at && (
+                      <Badge
+                        variant="destructive"
+                        title={new Date(message.deleted_at).toLocaleString("zh-CN")}
+                      >
+                        已删除 · 原文留存
+                      </Badge>
+                    )}
+                    {message.is_stale && (
+                      <span
+                        className="text-xs text-muted-foreground"
+                        title={`最后消息版本已超过 ${message.freshness_seconds} 秒，仅为时效提示，不是执行判定`}
+                      >
+                        超过时效提示窗口
+                      </span>
+                    )}
                   </div>
                   {message.reply_to_message_id && (
                     <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
@@ -165,28 +197,21 @@ export function MessageFeed({ channel }: { channel: MessageChannel }) {
                     </p>
                   )}
                   {message.content && (
-                    <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-7">
+                    <p
+                      className={`mt-1 whitespace-pre-wrap break-words text-sm leading-7 ${message.deleted_at ? "text-muted-foreground" : ""}`}
+                    >
                       {message.content}
                     </p>
                   )}
                   {message.attachments.map((attachment) =>
                     isImageAttachment(attachment.filename, attachment.content_type) ? (
-                      <a
+                      <ArchiveImage
                         key={attachment.url}
-                        href={attachment.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-3 block w-fit overflow-hidden rounded-lg border bg-muted"
-                      >
-                        <Image
-                          src={attachment.url}
-                          alt={attachment.filename}
-                          width={720}
-                          height={480}
-                          unoptimized
-                          className="max-h-[520px] w-auto max-w-[720px] object-contain"
-                        />
-                      </a>
+                        url={attachment.url}
+                        alt={attachment.filename}
+                        status={attachment.archive_status}
+                        error={attachment.archive_error}
+                      />
                     ) : (
                       <a
                         key={attachment.url}
@@ -232,13 +257,11 @@ export function MessageFeed({ channel }: { channel: MessageChannel }) {
                         </div>
                       )}
                       {embed.image_url && (
-                        <Image
-                          src={embed.image_url}
+                        <ArchiveImage
+                          url={embed.image_url}
                           alt={embed.title || "Discord Embed 图片"}
-                          width={720}
-                          height={480}
-                          unoptimized
-                          className="max-h-[520px] w-auto max-w-full object-contain"
+                          status={embed.archive_status}
+                          error={embed.archive_error}
                         />
                       )}
                       {(embed.footer || embed.timestamp) && (

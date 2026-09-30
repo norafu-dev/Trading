@@ -68,13 +68,45 @@ class EventSummary(BaseModel):
     occurred_at: datetime
 
 
+class StorageSummary(BaseModel):
+    """本项目确认归档的容量及任务状态，不代表整个 Cloudflare 账户账单。"""
+
+    configured: bool
+    object_count: int
+    size_bytes: int
+    warning_bytes: int
+    capacity_warning: bool
+    pending: int
+    processing: int
+    stored: int
+    failed: int
+    last_error: str | None
+
+
 class DashboardResponse(BaseModel):
+    storage: StorageSummary
     sources: list[SourceDetails]
     runtime: RuntimeStatus
     total_messages: int
     messages: list[MessageSummary]
     events: list[EventSummary]
     server_time: datetime
+    checkpoints: list["CheckpointDetails"] = Field(default_factory=list)
+
+
+class CheckpointDetails(BaseModel):
+    """每个频道的补采覆盖起点、进度与失败重试状态，不代表全量 Discord 历史。"""
+
+    channel_id: str
+    name: str
+    cursor_id: str
+    target_id: str | None
+    coverage_started_at: datetime
+    state: str
+    attempts: int
+    next_attempt_at: datetime
+    last_error: str | None
+    last_completed_at: datetime | None
 
 
 class MessageChannel(BaseModel):
@@ -149,6 +181,8 @@ class MessageMedia(BaseModel):
     filename: str
     url: str
     content_type: str | None = None
+    archive_status: str | None = None
+    archive_error: str | None = None
 
 
 class MessageEmbedField(BaseModel):
@@ -166,6 +200,8 @@ class MessageEmbed(BaseModel):
     description: str | None = None
     url: str | None = None
     image_url: str | None = None
+    archive_status: str | None = None
+    archive_error: str | None = None
     fields: list[MessageEmbedField] = Field(default_factory=list)
     footer: str | None = None
     timestamp: datetime | None = None
@@ -179,6 +215,12 @@ class CollectedMessage(MessageSummary):
     reply_to_message_id: str | None = None
     attachments: list[MessageMedia] = Field(default_factory=list)
     embeds: list[MessageEmbed] = Field(default_factory=list)
+    first_delivery: str = "unknown"
+    collection_delay_seconds: float = 0
+    edited_at: datetime | None = None
+    deleted_at: datetime | None = None
+    is_stale: bool = True
+    freshness_seconds: int = 120
 
 
 class MessagePage(BaseModel):

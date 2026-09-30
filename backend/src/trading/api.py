@@ -9,6 +9,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from trading.config import Settings
 from trading.db.session import check_database, create_engine
 from trading.http.routes import router
+from trading.media.storage import R2Storage
 from trading.services.channel_groups import ChannelGroupNotFound, ChannelLayoutConflict
 from trading.services.sources import DuplicateSource, SourceNotFound
 
@@ -20,12 +21,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         """启动时检查数据库，在启动失败或应用退出时始终关闭连接池。"""
+        app.state.settings = settings
+        app.state.storage = R2Storage(settings) if settings.r2_configured else None
         app.state.engine = create_engine(settings)
         try:
             await check_database(app.state.engine)
             yield
         finally:
             await app.state.engine.dispose()
+            if app.state.storage:
+                app.state.storage.close()
 
     app = FastAPI(title="Trading Collector", lifespan=lifespan, docs_url=None, redoc_url=None)
 
